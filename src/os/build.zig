@@ -176,7 +176,7 @@ pub fn build(b: *std.Build) void {
 
     // Phase 5: Create disk
     const disk_image = switch (machine) {
-        .@"x86-pc-bios" => blk: {
+        .@"x86-pc-generic" => blk: {
             const bios_boot = true;
             const uefi_boot = true;
             const mbr_part = false;
@@ -201,10 +201,10 @@ pub fn build(b: *std.Build) void {
             }
 
             // Always required:
-            boot_fs.copyFile(b.path("../../rootfs/pc-bios/limine.conf"), "/limine.conf");
+            boot_fs.copyFile(b.path("../../rootfs/pc-generic/limine.conf"), "/limine.conf");
             boot_fs.copyFile(kernel_exe, "/ashet-os");
 
-            const raw_disk_file = disk_image_tools.createDisk(67 * DiskBuildInterface.MiB, if (mbr_part)
+            const raw_disk_file = disk_image_tools.createDisk(machine_info.disk_size, if (mbr_part)
                 .{
                     .mbr_part_table = .{
                         .partitions = .{
@@ -317,9 +317,9 @@ const MachineDependentOsConfig = struct {
 };
 
 const machine_info_map = std.EnumArray(Machine, MachineDependentOsConfig).init(.{
-    .@"x86-pc-bios" = .{
+    .@"x86-pc-generic" = .{
         .rom_size = null,
-        .disk_size = 512 * DiskBuildInterface.MiB,
+        .disk_size = 67 * DiskBuildInterface.MiB,
     },
     .@"rv32-qemu-virt" = .{
         .disk_size = 0x0200_0000,

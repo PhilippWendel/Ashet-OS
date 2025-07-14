@@ -18,7 +18,7 @@ jobs:
           - arm-qemu-virt
           - rv32-qemu-virt
           - x86-hosted-linux
-          - x86-pc-bios
+          - x86-pc-generic
 
     runs-on: ${{matrix.os}}
 

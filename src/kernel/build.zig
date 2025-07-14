@@ -320,11 +320,11 @@ const platform_info_map = std.EnumArray(Platform, PlatformConfig).init(.{
 });
 
 const machine_info_map = std.EnumArray(Machine, MachineConfig).init(.{
-    .@"x86-pc-bios" = .{
+    .@"x86-pc-generic" = .{
         .target = constructTargetQuery(generic_x86),
 
-        .source_file = "port/machine/x86/pc-bios/pc-bios.zig",
-        .linker_script = "port/machine/x86/pc-bios/linker.ld",
+        .source_file = "port/machine/x86/pc-generic/pc-generic.zig",
+        .linker_script = "port/machine/x86/pc-generic/linker.ld",
     },
 
     .@"rv32-qemu-virt" = .{

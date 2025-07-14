@@ -47,7 +47,7 @@ pub fn build(b: *std.Build) void {
 
     const install_rootfs = b.option(bool, "rootfs", "Installs the rootfs contents as well for hosted targets (default: off)") orelse false;
 
-    const maybe_run_machine = b.option(Machine, "machine", "Selects which machine to run with the 'run' step");
+    const maybe_run_target = b.option(RunTarget, "machine", "Selects which machine to run with the 'run' step");
     const qemu_gui = b.option(QemuDisplayMode, "gui", "Selects GUI mode for QEMU (headless, sdl, gtk)") orelse if (b.graph.host.result.os.tag.isDarwin())
         QemuDisplayMode.cocoa
     else
@@ -62,6 +62,11 @@ pub fn build(b: *std.Build) void {
 
     // Steps:
     const test_step = b.step("test", "Runs the test suite");
+
+    const maybe_run_machine: ?Machine = if (maybe_run_target) |target|
+        target.get_machine()
+    else
+        null;
 
     const machine_steps = blk: {
         var steps = std.EnumArray(Machine, *std.Build.Step).initUndefined();
@@ -181,13 +186,15 @@ pub fn build(b: *std.Build) void {
 
     // Run:
 
-    if (maybe_run_machine) |run_machine| {
+    if (maybe_run_target) |run_target| {
+        const run_machine = run_target.get_machine();
+
         const run_step = b.step("run", b.fmt("Runs the OS machine {s}", .{@tagName(run_machine)}));
 
         run_step.dependOn(machine_steps.get(run_machine));
 
         const platform_info = platform_info_map.get(run_machine.get_platform());
-        const machine_info = machine_info_map.get(run_machine);
+        const machine_info = machine_info_map.get(run_target);
 
         const machine_os_dep = os_deps.get(run_machine);
 
@@ -336,8 +343,18 @@ const platform_info_map = std.EnumArray(Platform, PlatformStartupConfig).init(.{
     },
 });
 
-const machine_info_map = std.EnumArray(Machine, MachineStartupConfig).init(.{
-    .@"x86-pc-bios" = .{
+const machine_info_map = std.EnumArray(RunTarget, MachineStartupConfig).init(.{
+    .@"x86-pc-generic-bios" = .{
+        .qemu_cli = &.{
+            "-machine", "pc",
+            "-cpu",     "pentium2",
+            "-drive",   "if=ide,index=0,format=raw,file=${DISK}",
+            "--device", "isa-debug-exit",
+            "-vga", "none", // disable standard VGA
+            "--device", "VGA,xres=800,yres=480,xmax=800,ymax=480,edid=true", // replace with customized VGA and limited resolution
+        },
+    },
+    .@"x86-pc-generic-uefi" = .{
         .qemu_cli = &.{
             "-machine", "pc",
             "-cpu",     "pentium2",
@@ -516,3 +533,26 @@ fn path_eql(lhs: []const u8, rhs: []const u8) bool {
     }
     return true;
 }
+
+pub const RunTarget = enum {
+    @"arm-ashet-hc",
+    @"arm-ashet-vhc",
+    @"arm-qemu-virt",
+
+    @"rv32-qemu-virt",
+
+    @"x86-hosted-linux",
+    @"x86-hosted-windows",
+
+    @"x86-pc-generic-bios",
+    @"x86-pc-generic-uefi",
+
+    pub fn get_machine(rt: RunTarget) Machine {
+        return switch (rt) {
+            .@"x86-pc-generic-bios" => .@"x86-pc-generic",
+            .@"x86-pc-generic-uefi" => .@"x86-pc-generic",
+
+            inline else => |tag| return @field(Machine, @tagName(tag)),
+        };
+    }
+};

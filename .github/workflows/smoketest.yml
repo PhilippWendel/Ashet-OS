@@ -16,9 +16,14 @@ jobs:
         # Do not smoke-test "arm-ashet-hc", as it isn't runnable on a VM!
         platform:
           # - arm-ashet-vhc # TODO(fqu): VHC requires our own QEMU fork!
-          - rv32-qemu-virt
-          - x86-hosted-linux
-          - x86-pc-bios
+          - kernel: rv32-qemu-virt
+            runner: rv32-qemu-virt
+          - kernel: x86-hosted-linux
+            runner: x86-hosted-linux
+          - kernel: x86-pc-generic
+            runner: x86-pc-generic-bios
+          - kernel: x86-pc-generic
+            runner: x86-pc-generic-uefi
 
         optimize_kernel:
           - false
@@ -40,16 +45,16 @@ jobs:
           packages: qemu-system
           version: 1.1
 
-      - name: Build ${{ matrix.platform }}
+      - name: Build ${{ matrix.platform.kernel }}
         run: |
-          zig build -Doptimize-kernel=${{ matrix.optimize_kernel }} ${{ matrix.platform }}
+          zig build -Doptimize-kernel=${{ matrix.optimize_kernel }} ${{ matrix.platform.kernel }}
 
-      - name: Perform Smoke Test ${{ matrix.platform }}
+      - name: Perform Smoke Test ${{ matrix.platform.runner }}
         run: |
-          zig build -Doptimize-kernel=${{ matrix.optimize_kernel }} -Dmachine=${{ matrix.platform }} -Dgui=headless install
+          zig build -Doptimize-kernel=${{ matrix.optimize_kernel }} -Dmachine=${{ matrix.platform.runner }} -Dgui=headless install
 
           # this command is allowed to fail, we're doing checks by grep.
-          timeout 20s zig build -Doptimize-kernel=${{ matrix.optimize_kernel }} -Dmachine=${{ matrix.platform }} -Dgui=headless run 2>&1 | tee kernel.log || true
+          timeout 20s zig build -Doptimize-kernel=${{ matrix.optimize_kernel }} -Dmachine=${{ matrix.platform.runner }} -Dgui=headless run 2>&1 | tee kernel.log || true
 
           # Test if the desktop application did start:
           if ! grep -F "classic desktop ready!" kernel.log; then

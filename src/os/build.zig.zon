@@ -41,10 +41,5 @@
             .url = "git+https://github.com/zig-osdev/zig-limine-install?ref=main#bb910c524525f0be568905fe028630ef65a905b3",
             .hash = "zig_limine_install-0.0.0-vFWELZAUAABFVnKxToTab-B8VWxgy9S3B2Mnpq2aBFwp",
         },
-        .ovmf = .{
-            .url = "https://github.com/osdev0/edk2-ovmf-nightly/releases/download/nightly-2025-06-14/edk2-ovmf.tar.xz",
-            .hash = "N-V-__8AAAAAVAFlVQwLye_IhivhaSQf5400URtaLZXg1e3S",
-            .lazy = true,
-        },
     },
 }

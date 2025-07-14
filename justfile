@@ -18,7 +18,7 @@ build-kernel:
     {{zig}} build --prominent-compile-errors -freference-trace=10 -Dmachine=arm-ashet-vhc
     {{zig}} build --prominent-compile-errors -freference-trace=10 -Dmachine=arm-qemu-virt
     {{zig}} build --prominent-compile-errors -freference-trace=10 -Dmachine=rv32-qemu-virt
-    {{zig}} build --prominent-compile-errors -freference-trace=10 -Dmachine=x86-pc-bios
+    {{zig}} build --prominent-compile-errors -freference-trace=10 -Dmachine=x86-pc-generic
     {{zig}} build --prominent-compile-errors -freference-trace=10 -Dmachine=x86-hosted-linux
     {{zig}} build --prominent-compile-errors -freference-trace=10 -Dmachine=x86-hosted-windows
 
