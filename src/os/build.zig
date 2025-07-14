@@ -197,6 +197,7 @@ pub fn build(b: *std.Build) void {
             if (uefi_boot) {
                 boot_fs.mkdir("/EFI");
                 boot_fs.mkdir("/EFI/BOOT");
+                boot_fs.copyFile(limine_dep.namedLazyPath("limine").path(b, "BOOTIA32.EFI"), "/EFI/BOOT/BOOTIA32.EFI");
                 boot_fs.copyFile(limine_dep.namedLazyPath("limine").path(b, "BOOTX64.EFI"), "/EFI/BOOT/BOOTX64.EFI");
             }
 

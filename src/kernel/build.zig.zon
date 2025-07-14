@@ -53,11 +53,11 @@
 
         .network = .{
             .url = "git+https://github.com/ikskuh/zig-network.git?ref=main#117d0d5d3ba2891ce4c8e3dfcd0c24a3976a46ce",
-            .hash = "122033a766875fe3e349f81903e1ca33f47b5887a506b2916269d16a8576d607652b",
+            .hash = "network-0.1.0-AAAAABcrAQAzp2aHX-PjSfgZA-HKM_R7WIelBrKRYmnR",
         },
         .vnc = .{
-            .url = "https://github.com/ikskuh/zvnc/archive/7c051fdabe7486d3f01d4e66b8a4dace3ea714a2.tar.gz",
-            .hash = "zvnc-0.0.0-AAAAAASFAADJ2GjZEVOcP7RK72b6ziCX_Me48uCq_4LO",
+            .url = "git+https://github.com/ikskuh/zvnc.git#1d4753358b63ffcfdc475b51fa24c2e5a8ca92b7",
+            .hash = "zvnc-0.0.0-AAAAAPqEAACiXOGonZTKjBPHkwIEYnai0ZOr8ktKV6_f",
         },
         .@"foundation-libc" = .{
             .url = "https://github.com/Ashet-Technologies/deps/raw/refs/heads/main/foundation-libc-0.14.0-dev.tar.gz",
