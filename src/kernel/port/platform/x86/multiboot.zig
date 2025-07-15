@@ -210,7 +210,33 @@ pub const Info = extern struct {
         apm_table: bool,
         vbe: bool,
         framebuffer: bool,
-        padding: u19,
+        _reserved: u19,
+
+        pub fn format(flags: Flags, fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+            _ = fmt;
+            _ = options;
+            try writer.writeAll("{");
+
+            var any = false;
+            inline for (comptime std.meta.fields(Flags)) |fld| {
+                if (fld.name[0] == '_')
+                    continue;
+
+                if (@field(flags, fld.name)) {
+                    if (any) {
+                        try writer.writeAll(",");
+                    }
+                    try writer.writeAll(" ");
+                    try writer.writeAll(fld.name);
+
+                    any = true;
+                }
+            }
+            if (any) {
+                try writer.writeAll(" ");
+            }
+            try writer.writeAll("}");
+        }
     };
 
     pub const SymbolInfo = extern union {
@@ -315,39 +341,89 @@ pub const Info = extern struct {
     };
 
     pub const Framebuffer = extern struct {
-        //! The field ‘framebuffer_addr’ contains framebuffer physical address. This field is 64-bit wide but bootloader should set it under 4 GiB if possible for compatibility with kernels which aren’t aware of PAE or AMD64. The field ‘framebuffer_pitch’ contains the framebuffer pitch in bytes. The fields ‘framebuffer_width’, ‘framebuffer_height’ contain the framebuffer dimensions in pixels. The field ‘framebuffer_bpp’ contains the number of bits per pixel. If ‘framebuffer_type’ is set to ‘0’ it means indexed color will be used. In this case color_info is defined as follows:
-        //!
-        //!         +----------------------------------+
-        //! 110     | framebuffer_palette_addr         |
-        //! 114     | framebuffer_palette_num_colors   |
-        //!         +----------------------------------+
-        //! ‘framebuffer_palette_addr’ contains the address of the color palette, which is an array of color descriptors. Each color descriptor has the following structure:
-        //!
-        //!         +-------------+
-        //! 0       | red_value   |
-        //! 1       | green_value |
-        //! 2       | blue_value  |
-        //!         +-------------+
-        //! If ‘framebuffer_type’ is set to ‘1’ it means direct RGB color will be used. Then color_type is defined as follows:
-        //!
-        //!         +----------------------------------+
-        //! 110     | framebuffer_red_field_position   |
-        //! 111     | framebuffer_red_mask_size        |
-        //! 112     | framebuffer_green_field_position |
-        //! 113     | framebuffer_green_mask_size      |
-        //! 114     | framebuffer_blue_field_position  |
-        //! 115     | framebuffer_blue_mask_size       |
-        //!         +----------------------------------+
-        //! If ‘framebuffer_type’ is set to ‘2’ it means EGA-standard text mode will be used. In this case ‘framebuffer_width’ and ‘framebuffer_height’ are expressed in characters instead of pixels. ‘framebuffer_bpp’ is equal to 16 (bits per character) and ‘framebuffer_pitch’ is expressed in bytes per text line. All further values of ‘framebuffer_type’ are reserved for future expansion.
+        pub const Type = enum(u8) {
+            /// If ‘framebuffer_type’ is set to ‘0’ it means indexed color will be used. In this case color_info is defined as follows:
+            indexed = 0,
 
-        addr_low: u32,
-        addr_high: u32,
+            /// If ‘framebuffer_type’ is set to ‘1’ it means direct RGB color will be used. Then color_type is defined as follows:
+            rgb = 1,
+
+            /// If ‘framebuffer_type’ is set to ‘2’ it means EGA-standard text mode will be used. In this case ‘framebuffer_width’ and ‘framebuffer_height’ are expressed in characters instead of pixels. ‘framebuffer_bpp’ is equal to 16 (bits per character) and ‘framebuffer_pitch’ is expressed in bytes per text line. All further values of ‘framebuffer_type’ are reserved for future expansion.
+            text = 2,
+
+            _,
+        };
+
+        /// If ‘framebuffer_type’ is set to ‘0’ it means indexed color will be used. In this case color_info is defined as follows:
+        ///
+        ///         +----------------------------------+
+        /// 110     | framebuffer_palette_addr         |
+        /// 114     | framebuffer_palette_num_colors   |
+        ///         +----------------------------------+
+        /// ‘framebuffer_palette_addr’ contains the address of the color palette, which is an array of color descriptors.
+        pub const IndexedColorInfo = extern struct {
+            palette_addr: u32,
+            palette_num_colors: u32,
+        };
+
+        /// Each color descriptor has the following structure:
+        ///
+        ///         +-------------+
+        /// 0       | red_value   |
+        /// 1       | green_value |
+        /// 2       | blue_value  |
+        ///         +-------------+
+        pub const PaletteEntry = extern struct {
+            r: u8,
+            g: u8,
+            b: u8,
+        };
+
+        /// If ‘framebuffer_type’ is set to ‘1’ it means direct RGB color will be used. Then color_type is defined as follows:
+        ///
+        ///         +----------------------------------+
+        /// 110     | framebuffer_red_field_position   |
+        /// 111     | framebuffer_red_mask_size        |
+        /// 112     | framebuffer_green_field_position |
+        /// 113     | framebuffer_green_mask_size      |
+        /// 114     | framebuffer_blue_field_position  |
+        /// 115     | framebuffer_blue_mask_size       |
+        ///         +----------------------------------+
+        pub const RgbColorInfo = extern struct {
+            red_field_position: u8,
+            red_mask_size: u8,
+            green_field_position: u8,
+            green_mask_size: u8,
+            blue_field_position: u8,
+            blue_mask_size: u8,
+        };
+
+        pub const ColorInfo = extern union {
+            indexed: IndexedColorInfo,
+            rgb: RgbColorInfo,
+            text: void,
+            raw: [6]u8,
+        };
+
+        /// The field address contains framebuffer physical address.
+        /// This field is 64-bit wide but bootloader should set it under 4 GiB
+        /// if possible for compatibility with kernels which aren’t aware of PAE or AMD64.
+        address: u64 align(4),
+
+        /// The field pitch’ contains the framebuffer pitch in bytes.
         pitch: u32,
+
+        /// The field width’ contain the framebuffer dimensions in pixels.
         width: u32,
+        /// The field height’ contain the framebuffer dimensions in pixels.
         height: u32,
+
+        /// The field bpp’ contains the number of bits per pixel.
         bpp: u8,
-        type: u8,
-        color_info: [5]u8,
+
+        type: Type,
+
+        color_info: ColorInfo align(1),
     };
 
     comptime {

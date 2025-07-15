@@ -401,12 +401,12 @@ const machine_info_map = std.EnumArray(RunTarget, MachineStartupConfig).init(.{
             "-machine", "q35",
             // "-cpu",     "IvyBridge",
             "-m",       "512M",
-            "-drive",   "if=ide,index=0,format=raw,file=${DISK}",
-            "--device", "isa-debug-exit",
+            "-drive",   "if=ide,node-name=disk,index=0,format=raw,file=${DISK}",
+            "-device",  "isa-debug-exit",
             "-vga", "none", // disable standard VGA
-            "--device", "VGA,xres=800,yres=480,xmax=800,ymax=480,edid=true", // replace with customized VGA and limited resolution
-            "-drive",   "if=pflash,unit=0,format=raw,readonly=on,file=${OVMF_CODE_X64}",
-            "-drive",   "if=pflash,unit=1,format=raw,file=${OVMF_VARS_X64}",
+            "-device", "VGA,xres=800,yres=480,xmax=800,ymax=480,edid=true", // replace with customized VGA and limited resolution
+            "-drive",  "if=pflash,unit=0,format=raw,readonly=on,file=${OVMF_CODE_X64}",
+            "-drive",  "if=pflash,unit=1,format=raw,file=${OVMF_VARS_X64}",
         },
         .requires_ovmf = true,
     },

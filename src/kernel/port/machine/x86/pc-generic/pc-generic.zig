@@ -48,7 +48,8 @@ const hw = struct {
 
     var kbc: ashet.drivers.input.PC_KBC = undefined;
 
-    var vbe: ashet.drivers.video.VESA_BIOS_Extension = undefined;
+    var vbe: ashet.drivers.video.Memory_Mapped_Framebuffer = undefined;
+    var fbdev: ashet.drivers.video.Memory_Mapped_Framebuffer = undefined;
     var vga: ashet.drivers.video.VGA = undefined;
 
     var ata: [8]ashet.drivers.block.AT_Attachment = undefined;
@@ -162,6 +163,8 @@ fn initialize() !void {
         });
     }
 
+    logger.info("bootloader flags: {}", .{mbheader.flags});
+
     kernel_options = if (mbheader.flags.cmdline) blk: {
         x86.vmm.ensure_accessible_obj(&mbheader.cmdline[0]);
 
@@ -211,7 +214,10 @@ fn initialize() !void {
     logger.info("multiboot info: {}", .{mbheader});
 
     logger.debug("initialize VBE...", .{});
-    if (ashet.drivers.video.VESA_BIOS_Extension.init(ashet.memory.allocator, mbheader)) |vbe| {
+    if (ashet.drivers.video.Multiboot_Framebuffer.init(ashet.memory.allocator, mbheader)) |fbdev| {
+        hw.fbdev = fbdev;
+        ashet.drivers.install(&hw.fbdev.driver);
+    } else |_| if (ashet.drivers.video.VESA_BIOS_Extension.init(ashet.memory.allocator, mbheader)) |vbe| {
         hw.vbe = vbe;
         ashet.drivers.install(&hw.vbe.driver);
     } else |vbe_error| {
@@ -236,7 +242,8 @@ fn initialize() !void {
     logger.debug("initialize ATA...", .{});
     for (&hw.ata, 0..) |*ata, index| {
         // requires rtc to be initialized!
-        ata.* = ashet.drivers.block.AT_Attachment.init(@as(u3, @truncate(index))) catch {
+        ata.* = ashet.drivers.block.AT_Attachment.init(@as(u3, @truncate(index))) catch |err| {
+            logger.warn("Failed to initialize ATA drive {}: {s}", .{ index, @errorName(err) });
             continue;
         };
         ashet.drivers.install(&ata.driver);

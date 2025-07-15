@@ -45,6 +45,8 @@ pub const video = struct {
     pub const Host_SDL_Output = @import("video/Host_SDL_Output.zig");
     pub const ILI9488 = @import("video/ILI9488.zig");
     pub const HSTX_DVI = @import("video/HSTX_DVI.zig");
+    pub const Multiboot_Framebuffer = @import("video/Multiboot_Framebuffer.zig");
+    pub const Memory_Mapped_Framebuffer = @import("video/Memory_Mapped_Framebuffer.zig");
 };
 
 pub const network = struct {

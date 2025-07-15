@@ -109,3 +109,16 @@ pub fn change(range: Range, protection: Protection) void {
 
     machine_impl.update(range, protection);
 }
+
+pub fn ensure_accessible_obj(object: anytype) void {
+    if (get_address_info(@intFromPtr(object)).protection == .forbidden) {
+        change(Range.from_slice(std.mem.asBytes(object)), .read_only);
+    }
+}
+
+pub fn ensure_accessible_slice(slice: anytype) void {
+    for (slice) |*item| {
+        ensure_accessible_obj(item);
+    }
+    // change(Range.from_slice(slice), .read_only);
+}
