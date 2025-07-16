@@ -575,6 +575,11 @@ pub fn fmtCodeLocation(addr: usize) CodeLocation {
 }
 
 fn halt() noreturn {
+    if (machine_config.halt) |machine_halt| {
+        std.log.err("triggering machine halt...", .{});
+        machine_halt();
+    }
+
     if (builtin.mode == .Debug) {
         if (!double_panic) {
             @breakpoint();

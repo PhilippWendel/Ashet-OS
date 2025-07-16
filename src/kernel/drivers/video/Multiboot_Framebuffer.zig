@@ -39,7 +39,7 @@ pub fn init(allocator: std.mem.Allocator, mbinfo: *multiboot.Info) !Memory_Mappe
         .height = fb.height,
 
         .bits_per_pixel = fb.bpp,
-        .bytes_per_scan_line = 8 * ((fb.bpp + 7) / 8),
+        .bytes_per_scan_line = fb.pitch,
 
         .red_mask_size = color_info.red_mask_size,
         .green_mask_size = color_info.green_mask_size,

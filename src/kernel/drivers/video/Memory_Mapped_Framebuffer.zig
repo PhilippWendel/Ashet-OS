@@ -26,7 +26,11 @@ pub fn create(allocator: std.mem.Allocator, driver_name: []const u8, config: Con
 
     ashet.memory.protection.ensure_accessible_slice(framebuffer.base[0 .. framebuffer.height * framebuffer.stride]);
 
-    const vmem = try allocator.alignedAlloc(Color, ashet.memory.page_size, framebuffer.stride * framebuffer.height);
+    for (framebuffer.base[0 .. framebuffer.height * framebuffer.stride]) |_| {
+        //
+    }
+
+    const vmem = try allocator.alignedAlloc(Color, ashet.memory.page_size, framebuffer.width * framebuffer.height);
     errdefer allocator.free(vmem);
 
     @memset(vmem, ashet.video.defaults.border_color);
@@ -34,10 +38,10 @@ pub fn create(allocator: std.mem.Allocator, driver_name: []const u8, config: Con
         .base = vmem.ptr,
         .width = @intCast(framebuffer.width),
         .height = @intCast(framebuffer.height),
-        .stride = framebuffer.stride,
+        .stride = framebuffer.width,
     });
 
-    return Memory_Mapped_Framebuffer{
+    var driver = Memory_Mapped_Framebuffer{
         .driver = .{
             .name = driver_name,
             .class = .{
@@ -52,6 +56,10 @@ pub fn create(allocator: std.mem.Allocator, driver_name: []const u8, config: Con
 
         .backing_buffer = vmem,
     };
+
+    flush(&driver.driver);
+
+    return driver;
 }
 
 pub const RGB = packed struct(u32) {

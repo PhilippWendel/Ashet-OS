@@ -111,14 +111,12 @@ pub fn change(range: Range, protection: Protection) void {
 }
 
 pub fn ensure_accessible_obj(object: anytype) void {
-    if (get_address_info(@intFromPtr(object)).protection == .forbidden) {
-        change(Range.from_slice(std.mem.asBytes(object)), .read_only);
-    }
+    ensure_accessible_obj(std.mem.asBytes(object));
 }
 
 pub fn ensure_accessible_slice(slice: anytype) void {
-    for (slice) |*item| {
-        ensure_accessible_obj(item);
-    }
-    // change(Range.from_slice(slice), .read_only);
+    if (comptime !is_supported())
+        return;
+
+    machine_impl.ensure_accessible_slice(std.mem.sliceAsBytes(slice));
 }

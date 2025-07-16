@@ -19,12 +19,14 @@ pub const machine_config = ashet.ports.MachineConfig{
         .activate = x86.vmm.activate,
         .get_protection = x86.vmm.get_protection,
         .get_info = x86.vmm.query_address,
+        .ensure_accessible_slice = x86.vmm.ensure_accessible_byte_slice,
     },
     .initialize = initialize,
     .early_initialize = early_initialize,
     .debug_write = debug_write,
     .get_linear_memory_region = get_linear_memory_region,
     .get_tick_count_ms = get_tick_count_ms,
+    .halt = halt_system,
 };
 
 const SerialPortIO = struct {
@@ -376,3 +378,18 @@ export const multiboot_header linksection(".text.multiboot") = x86.multiboot.Hea
     .height = 600,
     .depth = 32,
 });
+
+fn halt_system() noreturn {
+
+    // DEFINE_PROP_UINT32("iobase", ISADebugExitState, iobase, 0x501),
+    // DEFINE_PROP_UINT32("iosize", ISADebugExitState, iosize, 0x02),
+
+    x86.out(u32, 0x501, 1);
+
+    while (true) {
+        asm volatile (
+            \\cli
+            \\hlt
+        );
+    }
+}
