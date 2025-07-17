@@ -16,7 +16,11 @@ const Memory_Mapped_Framebuffer = @This();
 
 driver: Driver,
 
-framebuffer: Framebuffer,
+base: [*]u8,
+stride: usize,
+width: u16,
+height: u16,
+byte_per_pixel: u32,
 
 backing_buffer: []align(ashet.memory.page_size) Color,
 border_color: Color = ashet.video.defaults.border_color,
@@ -24,55 +28,57 @@ border_color: Color = ashet.video.defaults.border_color,
 pub fn create(allocator: std.mem.Allocator, driver_name: []const u8, config: Config) !Memory_Mapped_Framebuffer {
     const framebuffer = try config.instantiate();
 
+    const width = std.math.cast(u16, framebuffer.width) orelse return error.FramebufferSize;
+    const height = std.math.cast(u16, framebuffer.height) orelse return error.FramebufferSize;
+
     ashet.memory.protection.ensure_accessible_slice(framebuffer.base[0 .. framebuffer.height * framebuffer.stride]);
 
-    for (framebuffer.base[0 .. framebuffer.height * framebuffer.stride]) |_| {
-        //
+    // Assert we can actually access the whole framebuffer:
+
+    for (@as([*]const volatile u8, framebuffer.base)[0 .. framebuffer.height * framebuffer.stride]) |x| {
+        std.mem.doNotOptimizeAway(x);
     }
 
     const vmem = try allocator.alignedAlloc(Color, ashet.memory.page_size, framebuffer.width * framebuffer.height);
     errdefer allocator.free(vmem);
-
-    @memset(vmem, ashet.video.defaults.border_color);
-    ashet.video.load_splash_screen(.{
-        .base = vmem.ptr,
-        .width = @intCast(framebuffer.width),
-        .height = @intCast(framebuffer.height),
-        .stride = framebuffer.width,
-    });
 
     var driver = Memory_Mapped_Framebuffer{
         .driver = .{
             .name = driver_name,
             .class = .{
                 .video = .{
-                    .flush_fn = flush,
+                    .flush_fn = framebuffer.flush_fn,
                     .get_properties_fn = get_properties,
                 },
             },
         },
 
-        .framebuffer = framebuffer,
+        .base = framebuffer.base,
+        .stride = framebuffer.stride,
+        .width = width,
+        .height = height,
+        .byte_per_pixel = framebuffer.byte_per_pixel,
 
         .backing_buffer = vmem,
     };
 
-    flush(&driver.driver);
+    // Setup the initial video contents
+    @memset(vmem, ashet.video.defaults.border_color);
+    ashet.video.load_splash_screen(.{
+        .base = vmem.ptr,
+        .width = width,
+        .height = height,
+        .stride = framebuffer.width,
+    });
+
+    // Immediate flush to show the boot splash:
+    framebuffer.flush_fn(&driver.driver);
 
     return driver;
 }
 
-pub const RGB = packed struct(u32) {
-    r: u8,
-    g: u8,
-    b: u8,
-    x: u8,
-};
-
 pub const Framebuffer = struct {
-    const WriteFn = fn (ptr: [*]u8, color: RGB) void;
-
-    writeFn: *const WriteFn,
+    flush_fn: *const fn (*Driver) void,
     base: [*]u8,
     stride: usize,
     width: u32,
@@ -116,7 +122,7 @@ pub const Config = struct {
             // oem_product_rev = 'Rev 1.1'
 
             return Framebuffer{
-                .writeFn = buildSpecializedWriteFunc8(u32, 16, 8, 0), // RGBX32
+                .flush_fn = buildSpecializedWriteFunc8(u32, 16, 8, 0), // RGBX32
 
                 .base = cfg.scanline0,
 
@@ -132,7 +138,7 @@ pub const Config = struct {
         if (!channel_depth_8bit)
             return error.Unsupported;
 
-        const write_ptr = switch (cfg.bits_per_pixel) {
+        const flush_fn = switch (cfg.bits_per_pixel) {
             32 => if (cfg.red_shift == 0 and cfg.green_shift == 8 and cfg.blue_shift == 16)
                 buildSpecializedWriteFunc8(u32, 0, 8, 16) // XBGR32
             else if (cfg.red_shift == 16 and cfg.green_shift == 8 and cfg.blue_shift == 0)
@@ -162,7 +168,7 @@ pub const Config = struct {
         };
 
         return Framebuffer{
-            .writeFn = write_ptr,
+            .flush_fn = flush_fn,
 
             .base = cfg.scanline0,
 
@@ -174,16 +180,55 @@ pub const Config = struct {
         };
     }
 
-    pub fn buildSpecializedWriteFunc8(comptime Pixel: type, comptime rshift: u32, comptime gshift: u32, comptime bshift: u32) *const Framebuffer.WriteFn {
+    pub fn buildSpecializedWriteFunc8(comptime Pixel: type, comptime rshift: u32, comptime gshift: u32, comptime bshift: u32) *const fn (*Driver) void {
         return struct {
-            fn write(ptr: [*]u8, rgb: RGB) void {
+            fn flush(driver: *Driver) void {
+                const vd: *Memory_Mapped_Framebuffer = @fieldParentPtr("driver", driver);
+
                 @setRuntimeSafety(false);
-                const color: Pixel = (@as(Pixel, rgb.r) << rshift) |
+                // const flush_time_start = readHwCounter();
+
+                const pixel_count = @as(usize, vd.width) * @as(usize, vd.height);
+
+                {
+                    var row = vd.base;
+                    var ind: usize = 0;
+
+                    var x: usize = 0;
+                    for (vd.backing_buffer[0..pixel_count]) |color| {
+                        write(row + ind, color);
+
+                        x += 1;
+                        ind += vd.byte_per_pixel;
+
+                        if (x == vd.width) {
+                            x = 0;
+                            ind = 0;
+                            row += vd.stride;
+                        }
+                    }
+                }
+
+                // const flush_time_end = readHwCounter();
+                // const flush_time = flush_time_end -| flush_time_start;
+
+                // flush_limit += flush_time;
+                // flush_count += 1;
+
+                // logger.debug("frame flush time: {} cycles, avg {} cycles", .{ flush_time, flush_limit / flush_count });
+            }
+
+            inline fn write(ptr: [*]u8, color: Color) void {
+                @setRuntimeSafety(false);
+
+                const rgb = color.to_rgb888();
+
+                const pixel: Pixel = (@as(Pixel, rgb.r) << rshift) |
                     (@as(Pixel, rgb.g) << gshift) |
                     (@as(Pixel, rgb.b) << bshift);
-                std.mem.writeInt(Pixel, ptr[0 .. (@typeInfo(Pixel).int.bits + 7) / 8], color, .little);
+                std.mem.writeInt(Pixel, ptr[0 .. (@typeInfo(Pixel).int.bits + 7) / 8], pixel, .little);
             }
-        }.write;
+        }.flush;
     }
 };
 
@@ -191,58 +236,11 @@ fn get_properties(driver: *Driver) ashet.video.DeviceProperties {
     const vd: *Memory_Mapped_Framebuffer = @fieldParentPtr("driver", driver);
     return .{
         .resolution = .{
-            .width = @intCast(vd.framebuffer.width),
-            .height = @intCast(vd.framebuffer.height),
+            .width = vd.width,
+            .height = vd.height,
         },
-        .stride = vd.framebuffer.width,
+        .stride = vd.width,
         .video_memory = vd.backing_buffer,
         .video_memory_mapping = .buffered,
-    };
-}
-
-fn flush(driver: *Driver) void {
-    const vd: *Memory_Mapped_Framebuffer = @fieldParentPtr("driver", driver);
-
-    @setRuntimeSafety(false);
-    // const flush_time_start = readHwCounter();
-
-    const pixel_count = @as(usize, vd.framebuffer.width) * @as(usize, vd.framebuffer.height);
-
-    {
-        var row = vd.framebuffer.base;
-        var ind: usize = 0;
-
-        var x: usize = 0;
-        for (vd.backing_buffer[0..pixel_count]) |color| {
-            vd.framebuffer.writeFn(row + ind, pal(color));
-
-            x += 1;
-            ind += vd.framebuffer.byte_per_pixel;
-
-            if (x == vd.framebuffer.width) {
-                x = 0;
-                ind = 0;
-                row += vd.framebuffer.stride;
-            }
-        }
-    }
-
-    // const flush_time_end = readHwCounter();
-    // const flush_time = flush_time_end -| flush_time_start;
-
-    // flush_limit += flush_time;
-    // flush_count += 1;
-
-    // logger.debug("frame flush time: {} cycles, avg {} cycles", .{ flush_time, flush_limit / flush_count });
-}
-
-inline fn pal(color: Color) RGB {
-    @setRuntimeSafety(false);
-    const rgb = color.to_rgb888();
-    return .{
-        .r = rgb.r,
-        .g = rgb.g,
-        .b = rgb.b,
-        .x = 0,
     };
 }
