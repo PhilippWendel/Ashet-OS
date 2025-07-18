@@ -17,6 +17,7 @@ pub const machine_config = ashet.ports.MachineConfig{
     .debug_write = hosted.debug_write,
     .get_linear_memory_region = hosted.get_linear_memory_region,
     .get_tick_count_ms = hosted.get_tick_count_ms,
+    .halt = null,
 };
 
 fn initialize() !void {

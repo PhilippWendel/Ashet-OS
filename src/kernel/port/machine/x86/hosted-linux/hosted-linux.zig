@@ -21,12 +21,14 @@ pub const machine_config = ashet.ports.MachineConfig{
         .activate = mprotect.activate,
         .get_protection = mprotect.get_protection,
         .get_info = mprotect.query_address,
+        .ensure_accessible_slice = mprotect.ensure_accessible_slice,
     },
     .initialize = initialize,
     .early_initialize = null,
     .debug_write = hosted.debug_write,
     .get_linear_memory_region = hosted.get_linear_memory_region,
     .get_tick_count_ms = hosted.get_tick_count_ms,
+    .halt = null,
 };
 
 fn initialize() !void {

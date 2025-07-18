@@ -1,7 +1,5 @@
 
-# for 0.13, we need zig-ashet, which is the fork
-# for 0.14, we need at least 0.14.0-dev.3213+53216d2f2
-zig := "zig-0.14.0"
+zig := "zig-0.14.1"
 
 optimize_kernel := "false"
 optimize_apps := "Debug"

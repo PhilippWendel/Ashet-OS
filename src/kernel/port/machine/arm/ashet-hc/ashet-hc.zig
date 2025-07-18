@@ -27,6 +27,7 @@ pub const machine_config = ashet.ports.MachineConfig{
     .initialize = initialize,
     .debug_write = debug_write,
     .get_linear_memory_region = get_linear_memory_region,
+    .halt = null,
 };
 
 const pinout = struct {
