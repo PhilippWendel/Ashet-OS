@@ -22,8 +22,9 @@ jobs:
             runner: x86-hosted-linux
           - kernel: x86-pc-generic
             runner: x86-pc-generic-bios
-          - kernel: x86-pc-generic
-            runner: x86-pc-generic-uefi
+          # TODO: Enable UEFI runner when q35/SATA works!
+          # - kernel: x86-pc-generic
+          #   runner: x86-pc-generic-uefi
 
         optimize_kernel:
           - false
