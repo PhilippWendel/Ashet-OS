@@ -20,8 +20,8 @@ pub const MachineID = enum {
     @"x86-hosted-linux",
     @"x86-hosted-windows",
 
-    @"x86-pc-bios",
-    // @"x86-pc-efi",
+    @"x86-pc-generic",
+    // @"x86-pc-uefi", // TODO: Find better name for the UEFI executable kernel
 
     // @"ppc-nintendo-gamecube",
 
@@ -31,7 +31,7 @@ pub const MachineID = enum {
             .@"arm-ashet-hc",
             .@"arm-qemu-virt",
             .@"rv32-qemu-virt",
-            .@"x86-pc-bios",
+            .@"x86-pc-generic",
             => false,
 
             .@"x86-hosted-linux",
@@ -48,7 +48,7 @@ pub const MachineID = enum {
             .@"rv32-qemu-virt" => "QEMU virt (RISC-V)",
             .@"x86-hosted-linux" => "OS Hosted (x86, Linux)",
             .@"x86-hosted-windows" => "OS Hosted (x86, Windows)",
-            .@"x86-pc-bios" => "x86 PC (BIOS)",
+            .@"x86-pc-generic" => "Generic PC (x86)",
         };
     }
 
@@ -64,7 +64,7 @@ pub const MachineID = enum {
 
             .@"x86-hosted-linux",
             .@"x86-hosted-windows",
-            .@"x86-pc-bios",
+            .@"x86-pc-generic",
             => .x86,
         };
     }

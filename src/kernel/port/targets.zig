@@ -29,6 +29,9 @@ pub const MachineConfig = struct {
 
     /// Returns the number of ticks in milliseconds since system start.
     get_tick_count_ms: fn () u64,
+
+    /// If set, the machine has a way to stop execution beyond running in loops until someone pulls the plug.
+    halt: ?fn () noreturn,
 };
 
 pub const MemoryProtectionConfig = struct {
@@ -37,6 +40,7 @@ pub const MemoryProtectionConfig = struct {
     update: fn (ashet.memory.Range, ashet.memory.protection.Protection) void,
     get_protection: fn (address: usize) ashet.memory.protection.Protection,
     get_info: ?fn (address: usize) ashet.memory.protection.AddressInfo,
+    ensure_accessible_slice: fn(slice:[]const u8) void,
 };
 
 pub const platforms = struct {

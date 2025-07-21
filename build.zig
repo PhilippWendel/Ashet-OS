@@ -47,7 +47,7 @@ pub fn build(b: *std.Build) void {
 
     const install_rootfs = b.option(bool, "rootfs", "Installs the rootfs contents as well for hosted targets (default: off)") orelse false;
 
-    const maybe_run_machine = b.option(Machine, "machine", "Selects which machine to run with the 'run' step");
+    const maybe_run_target = b.option(RunTarget, "machine", "Selects which machine to run with the 'run' step");
     const qemu_gui = b.option(QemuDisplayMode, "gui", "Selects GUI mode for QEMU (headless, sdl, gtk)") orelse if (b.graph.host.result.os.tag.isDarwin())
         QemuDisplayMode.cocoa
     else
@@ -62,6 +62,12 @@ pub fn build(b: *std.Build) void {
 
     // Steps:
     const test_step = b.step("test", "Runs the test suite");
+    const run_step = b.step("run", "Runs the OS on the machine provided with -Dmachine=...");
+
+    const maybe_run_machine: ?Machine = if (maybe_run_target) |target|
+        target.get_machine()
+    else
+        null;
 
     const machine_steps = blk: {
         var steps = std.EnumArray(Machine, *std.Build.Step).initUndefined();
@@ -180,14 +186,13 @@ pub fn build(b: *std.Build) void {
     }
 
     // Run:
-
-    if (maybe_run_machine) |run_machine| {
-        const run_step = b.step("run", b.fmt("Runs the OS machine {s}", .{@tagName(run_machine)}));
+    if (maybe_run_target) |run_target| {
+        const run_machine = run_target.get_machine();
 
         run_step.dependOn(machine_steps.get(run_machine));
 
         const platform_info = platform_info_map.get(run_machine.get_platform());
-        const machine_info = machine_info_map.get(run_machine);
+        const machine_info = machine_info_map.get(run_target);
 
         const machine_os_dep = os_deps.get(run_machine);
 
@@ -210,12 +215,25 @@ pub fn build(b: *std.Build) void {
             .{ .name = "dungeon.ashex", .exe = get_named_file(os_files, "apps/dungeon.elf") },
         };
 
-        const variables = Variables{
+        var variables = Variables{
             .@"${DISK}" = disk_img,
             .@"${KERNEL}" = kernel_elf,
-            .@"${BOOTROM}" = kernel_bin orelse b.path("<no bootrom>"),
-            .@"${ROOTFS}" = os_rootfs.get(run_machine) orelse b.path("<no rootfs>"),
+            .@"${BOOTROM}" = kernel_bin,
+            .@"${ROOTFS}" = os_rootfs.get(run_machine),
+
+            .@"${OVMF_CODE_IA32}" = null,
+            .@"${OVMF_VARS_IA32}" = null,
+            .@"${OVMF_CODE_X64}" = null,
+            .@"${OVMF_VARS_X64}" = null,
         };
+
+        if (machine_info.requires_ovmf) {
+            const ovmf = b.lazyDependency("ovmf", .{}) orelse return;
+            variables.@"${OVMF_CODE_IA32}" = ovmf.path("ovmf-code-ia32.fd");
+            variables.@"${OVMF_VARS_IA32}" = ovmf.path("ovmf-vars-ia32.fd");
+            variables.@"${OVMF_CODE_X64}" = ovmf.path("ovmf-code-x86_64.fd");
+            variables.@"${OVMF_VARS_X64}" = ovmf.path("ovmf-vars-x86_64.fd");
+        }
 
         // Run qemu with the debug-filter wrapped around so we can translate addresses
         // to file:line,function info
@@ -273,6 +291,25 @@ pub fn build(b: *std.Build) void {
         vm_runner.disable_zig_progress = true;
 
         run_step.dependOn(&vm_runner.step);
+    } else {
+        var fail_msg: std.ArrayList(u8) = .init(b.allocator);
+        defer fail_msg.deinit();
+
+        const writer = fail_msg.writer();
+
+        writer.writeAll(
+            \\To use 'zig build run', please pass a machine to -Dmachine=<...>.
+            \\
+            \\The following options are available:
+        ) catch @panic("oom");
+
+        for (std.enums.values(RunTarget)) |target| {
+            writer.print("\n  -Dmachine={s}", .{
+                @tagName(target),
+            }) catch @panic("oom");
+        }
+
+        run_step.dependOn(&b.addFail(fail_msg.toOwnedSlice() catch @panic("out of memory")).step);
     }
 
     {
@@ -287,23 +324,33 @@ const PlatformStartupConfig = struct {
 };
 
 const Variables = struct {
-    @"${DISK}": std.Build.LazyPath,
-    @"${BOOTROM}": std.Build.LazyPath,
-    @"${KERNEL}": std.Build.LazyPath,
-    @"${ROOTFS}": std.Build.LazyPath,
+    @"${DISK}": ?std.Build.LazyPath,
+    @"${BOOTROM}": ?std.Build.LazyPath,
+    @"${KERNEL}": ?std.Build.LazyPath,
+    @"${ROOTFS}": ?std.Build.LazyPath,
+
+    @"${OVMF_CODE_IA32}": ?std.Build.LazyPath,
+    @"${OVMF_VARS_IA32}": ?std.Build.LazyPath,
+
+    @"${OVMF_CODE_X64}": ?std.Build.LazyPath,
+    @"${OVMF_VARS_X64}": ?std.Build.LazyPath,
 
     pub fn addArg(variables: Variables, runner: *std.Build.Step.Run, arg: []const u8) void {
         inline for (@typeInfo(Variables).@"struct".fields) |fld| {
-            const path = @field(variables, fld.name);
+            const path: ?std.Build.LazyPath = @field(variables, fld.name);
 
             if (std.mem.eql(u8, arg, fld.name)) {
-                runner.addFileArg(path);
+                runner.addFileArg(path orelse @panic("missing variable " ++ fld.name));
                 return;
             }
 
             if (std.mem.endsWith(u8, arg, fld.name)) {
-                runner.addPrefixedFileArg(arg[0 .. arg.len - fld.name.len], path);
+                runner.addPrefixedFileArg(arg[0 .. arg.len - fld.name.len], path orelse @panic("missing variable " ++ fld.name));
                 return;
+            }
+
+            if (std.mem.indexOf(u8, arg, fld.name)) |_| {
+                @panic("invalid path!");
             }
         }
         runner.addArg(arg);
@@ -322,11 +369,13 @@ const MachineStartupConfig = struct {
     hosted_cli: []const []const u8 = &.{},
 
     hosted_video_setup: std.EnumArray(QemuDisplayMode, ?[]const []const u8) = .initFill(null),
+
+    requires_ovmf: bool = false,
 };
 
 const platform_info_map = std.EnumArray(Platform, PlatformStartupConfig).init(.{
     .x86 = .{
-        .qemu_exe = "qemu-system-i386",
+        .qemu_exe = "qemu-system-x86_64",
     },
     .arm = .{
         .qemu_exe = "qemu-system-arm",
@@ -336,8 +385,8 @@ const platform_info_map = std.EnumArray(Platform, PlatformStartupConfig).init(.{
     },
 });
 
-const machine_info_map = std.EnumArray(Machine, MachineStartupConfig).init(.{
-    .@"x86-pc-bios" = .{
+const machine_info_map = std.EnumArray(RunTarget, MachineStartupConfig).init(.{
+    .@"x86-pc-generic-bios" = .{
         .qemu_cli = &.{
             "-machine", "pc",
             "-cpu",     "pentium2",
@@ -346,6 +395,20 @@ const machine_info_map = std.EnumArray(Machine, MachineStartupConfig).init(.{
             "-vga", "none", // disable standard VGA
             "--device", "VGA,xres=800,yres=480,xmax=800,ymax=480,edid=true", // replace with customized VGA and limited resolution
         },
+    },
+    .@"x86-pc-generic-uefi" = .{
+        .qemu_cli = &.{
+            "-machine", "q35",
+            // "-cpu",     "IvyBridge",
+            "-m",       "512M",
+            "-drive",   "if=ide,node-name=disk,index=0,format=raw,file=${DISK}",
+            "-device",  "isa-debug-exit",
+            "-vga", "none", // disable standard VGA
+            "-device", "VGA,xres=800,yres=480,xmax=800,ymax=480,edid=true", // replace with customized VGA and limited resolution
+            "-drive",  "if=pflash,unit=0,format=raw,readonly=on,file=${OVMF_CODE_X64}",
+            "-drive",  "if=pflash,unit=1,format=raw,file=${OVMF_VARS_X64}",
+        },
+        .requires_ovmf = true,
     },
     .@"rv32-qemu-virt" = .{
         .qemu_cli = &.{
@@ -381,15 +444,14 @@ const machine_info_map = std.EnumArray(Machine, MachineStartupConfig).init(.{
     },
     .@"arm-ashet-vhc" = .{
         .qemu_cli = &.{
-            "-M",        "ashet-vhc",
-            "-m",        "8M",
-            "-kernel",   "${KERNEL}",
-            "-blockdev", "driver=file,node-name=disk_file,filename=${DISK}",
-            "-blockdev", "driver=raw,node-name=disk,file=disk_file",
-            "-device",   "virtio-gpu-device,xres=800,yres=480",
-            "-device",   "virtio-keyboard-device",
-            "-device",   "virtio-mouse-device",
-            "-device",   "virtio-blk-device,drive=disk",
+            "-M",      "ashet-vhc",
+            "-m",      "8M",
+            "-kernel", "${KERNEL}",
+            "-drive",  "format=raw,node-name=disk,file=${DISK}",
+            "-device", "virtio-gpu-device,xres=800,yres=480",
+            "-device", "virtio-keyboard-device",
+            "-device", "virtio-mouse-device",
+            "-device", "virtio-blk-device,drive=disk",
 
             // we use the second serial for dumping binary data out of the system /o\
             "-serial",
@@ -454,9 +516,10 @@ const machine_info_map = std.EnumArray(Machine, MachineStartupConfig).init(.{
 
 const generic_qemu_flags = [_][]const u8{
     "-no-reboot", "-no-shutdown",
-    "-chardev",   "stdio,id=os-monitor,logfile=zig-out/serial.log,signal=off",
-    "-serial",    "chardev:os-monitor",
+    "-chardev", "stdio,id=os-monitor,logfile=zig-out/serial.log,signal=on", // "signal=on" is required to allow ctrl-c
+    "-serial",  "chardev:os-monitor",
     "-s",
+    "-snapshot", // Don't enable image write-back
 };
 
 const qemu_display_flags: std.EnumArray(QemuDisplayMode, []const []const u8) = .init(.{
@@ -516,3 +579,26 @@ fn path_eql(lhs: []const u8, rhs: []const u8) bool {
     }
     return true;
 }
+
+pub const RunTarget = enum {
+    @"arm-ashet-hc",
+    @"arm-ashet-vhc",
+    @"arm-qemu-virt",
+
+    @"rv32-qemu-virt",
+
+    @"x86-hosted-linux",
+    @"x86-hosted-windows",
+
+    @"x86-pc-generic-bios",
+    @"x86-pc-generic-uefi",
+
+    pub fn get_machine(rt: RunTarget) Machine {
+        return switch (rt) {
+            .@"x86-pc-generic-bios" => .@"x86-pc-generic",
+            .@"x86-pc-generic-uefi" => .@"x86-pc-generic",
+
+            inline else => |tag| return @field(Machine, @tagName(tag)),
+        };
+    }
+};

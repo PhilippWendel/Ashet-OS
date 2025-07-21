@@ -109,3 +109,14 @@ pub fn change(range: Range, protection: Protection) void {
 
     machine_impl.update(range, protection);
 }
+
+pub fn ensure_accessible_obj(object: anytype) void {
+    ensure_accessible_obj(std.mem.asBytes(object));
+}
+
+pub fn ensure_accessible_slice(slice: anytype) void {
+    if (comptime !is_supported())
+        return;
+
+    machine_impl.ensure_accessible_slice(std.mem.sliceAsBytes(slice));
+}

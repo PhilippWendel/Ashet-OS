@@ -57,10 +57,18 @@ pub fn query_address(address: usize) ashet.memory.protection.AddressInfo {
 }
 
 pub fn ensure_accessible_obj(object: anytype) void {
-    change_protection(Range.from_slice(std.mem.asBytes(object)), null);
+    ensure_accessible_byte_slice(std.mem.asBytes(object));
 }
 
 pub fn ensure_accessible_slice(slice: anytype) void {
+    ensure_accessible_byte_slice(std.mem.sliceAsBytes(slice));
+}
+
+pub fn ensure_accessible_byte_slice(slice: []const u8) void {
+    log.info("ensure accessible: {*}..{*}", .{
+        slice.ptr,
+        slice.ptr + slice.len - 1,
+    });
     change_protection(Range.from_slice(slice), null);
 }
 

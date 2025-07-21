@@ -54,7 +54,7 @@ else switch (platform_id) {
 };
 
 pub const machine = switch (machine_id) {
-    .@"x86-pc-bios" => @import("port/machine/x86/pc-bios/pc-bios.zig"),
+    .@"x86-pc-generic" => @import("port/machine/x86/pc-generic/pc-generic.zig"),
     .@"rv32-qemu-virt" => @import("port/machine/rv32/qemu-virt/rv32-qemu-virt.zig"),
     .@"arm-ashet-hc" => @import("port/machine/arm/ashet-hc/ashet-hc.zig"),
     .@"arm-ashet-vhc" => @import("port/machine/arm/ashet-vhc/ashet-vhc.zig"),
@@ -217,6 +217,9 @@ fn main() !void {
 
     log.info("initialize video...", .{});
     try video.initialize();
+
+    log.info("scan partition tables...", .{});
+    storage.scan_partition_tables();
 
     log.info("initialize filesystem...", .{});
     filesystem.initialize();
@@ -572,6 +575,11 @@ pub fn fmtCodeLocation(addr: usize) CodeLocation {
 }
 
 fn halt() noreturn {
+    if (machine_config.halt) |machine_halt| {
+        std.log.err("triggering machine halt...", .{});
+        machine_halt();
+    }
+
     if (builtin.mode == .Debug) {
         if (!double_panic) {
             @breakpoint();

@@ -91,3 +91,10 @@ pub fn query_address(address: usize) AddressInfo {
         .was_written = false,
     };
 }
+
+pub fn ensure_accessible_slice(slice: []const u8) void {
+    // Just assert we can actually access everything:
+    for (slice) |*byte| {
+        std.mem.doNotOptimizeAway(byte.*);
+    }
+}

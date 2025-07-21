@@ -1,7 +1,5 @@
 
-# for 0.13, we need zig-ashet, which is the fork
-# for 0.14, we need at least 0.14.0-dev.3213+53216d2f2
-zig := "zig-0.14.0"
+zig := "zig-0.14.1"
 
 optimize_kernel := "false"
 optimize_apps := "Debug"
@@ -12,11 +10,13 @@ build:
 
 [working-directory: 'src/kernel']
 build-kernel:
+    {{zig}} build --prominent-compile-errors -freference-trace=10 -Dmachine=arm-ashet-hc -Dno-emit-bin
+
     {{zig}} build --prominent-compile-errors -freference-trace=10 -Dmachine=arm-ashet-hc
     {{zig}} build --prominent-compile-errors -freference-trace=10 -Dmachine=arm-ashet-vhc
     {{zig}} build --prominent-compile-errors -freference-trace=10 -Dmachine=arm-qemu-virt
     {{zig}} build --prominent-compile-errors -freference-trace=10 -Dmachine=rv32-qemu-virt
-    {{zig}} build --prominent-compile-errors -freference-trace=10 -Dmachine=x86-pc-bios
+    {{zig}} build --prominent-compile-errors -freference-trace=10 -Dmachine=x86-pc-generic
     {{zig}} build --prominent-compile-errors -freference-trace=10 -Dmachine=x86-hosted-linux
     {{zig}} build --prominent-compile-errors -freference-trace=10 -Dmachine=x86-hosted-windows
 

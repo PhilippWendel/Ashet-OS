@@ -45,6 +45,8 @@ pub const video = struct {
     pub const Host_SDL_Output = @import("video/Host_SDL_Output.zig");
     pub const ILI9488 = @import("video/ILI9488.zig");
     pub const HSTX_DVI = @import("video/HSTX_DVI.zig");
+    pub const Multiboot_Framebuffer = @import("video/Multiboot_Framebuffer.zig");
+    pub const Memory_Mapped_Framebuffer = @import("video/Memory_Mapped_Framebuffer.zig");
 };
 
 pub const network = struct {
@@ -112,7 +114,7 @@ pub fn DriverIterator(comptime class: DriverClass) type {
 }
 
 fn ResolvedDriverInterface(comptime class: DriverClass) type {
-    return std.meta.fields(DriverInterface)[std.meta.fieldIndex(DriverInterface, @tagName(class)).?].type;
+    return @FieldType(DriverInterface, @tagName(class));
 }
 
 pub fn getDriverName(comptime class: DriverClass, intf: *ResolvedDriverInterface(class)) []const u8 {
