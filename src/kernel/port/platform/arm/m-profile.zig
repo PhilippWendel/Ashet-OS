@@ -66,7 +66,7 @@ pub const start = struct {
         _ = cortexM_initial_vector_table;
 
         // We want the hardfault to be split into smaller parts:
-        registers.system_control_block.shcrs.modify(.{
+        registers.system_control_block.shcsr.modify(.{
             .memfault_enabled = true,
             .busfault_enabled = true,
             .usagefault_enabled = true,
@@ -714,7 +714,7 @@ pub const registers = struct {
         }, .{});
 
         /// System Handler Control and State Register
-        pub const shcrs = mmioRegister(0xE000ED24, packed struct(u32) {
+        pub const shcsr = mmioRegister(0xE000ED24, packed struct(u32) {
             /// MemManage exception active bit, reads as 1 if exception is active
             memfault_active: bool, // [0], RW
 
